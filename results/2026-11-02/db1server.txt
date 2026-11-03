@@ -1,0 +1,63 @@
+
+== INF-745 storage benchmark: db1server  2026-11-02 21:00:08 EAT
+kernel: 6.8.0-147-generic   cpus: 16   mem: 31.3 G
+scratch: /var/lib/postgresql/inf745-bench.91019 on /dev/mapper/ubuntu--vg-ubuntu--lv (ext4) 119G free of 311G
+virt: xen   load before: 0.24 0.35 0.48
+postgres clusters: 16/main online,recovery postgres; 
+fio: fio-3.36
+pg_test_fsync: /usr/lib/postgresql/16/bin/pg_test_fsync
+
+== pg_test_fsync -s 5 (as postgres, file in /var/lib/postgresql/inf745-bench.91019)
+5 seconds per test
+O_DIRECT supported on this platform for open_datasync and open_sync.
+Compare file sync methods using one 8kB write:
+(in wal_sync_method preference order, except fdatasync is Linux's default)
+        open_datasync                        62.685 ops/sec   15953 usecs/op
+        fdatasync                            78.705 ops/sec   12706 usecs/op
+        fsync                                14.235 ops/sec   70249 usecs/op
+        fsync_writethrough                              n/a
+        open_sync                            10.715 ops/sec   93325 usecs/op
+Compare file sync methods using two 8kB writes:
+(in wal_sync_method preference order, except fdatasync is Linux's default)
+        open_datasync                        22.591 ops/sec   44265 usecs/op
+        fdatasync                           194.169 ops/sec    5150 usecs/op
+        fsync                                13.576 ops/sec   73662 usecs/op
+        fsync_writethrough                              n/a
+        open_sync                            10.761 ops/sec   92928 usecs/op
+Compare open_sync with different write sizes:
+(This is designed to compare the cost of writing 16kB in different write
+open_sync sizes.)
+         1 * 16kB open_sync write            40.926 ops/sec   24434 usecs/op
+         2 *  8kB open_sync writes            1.925 ops/sec  519463 usecs/op
+         4 *  4kB open_sync writes            0.775 ops/sec  1290472 usecs/op
+         8 *  2kB open_sync writes            1.952 ops/sec  512175 usecs/op
+        16 *  1kB open_sync writes            0.192 ops/sec  5216930 usecs/op
+Test if fsync on non-write file descriptor is honored:
+(If the times are similar, fsync() can sync data written on a different
+descriptor.)
+        write, fsync, close                   0.907 ops/sec  1102004 usecs/op
+        write, close, fsync                   4.263 ops/sec  234595 usecs/op
+Non-sync'ed 8kB writes:
+        write                            543846.554 ops/sec       2 usecs/op
+
+== fio: 4G file, direct=1, libaio, 60s per job (time based), group_reporting
+-- rr8k_qd1  21:01:44
+  rr8k_qd1         read: 2473 IOPS 19.3 MB/s  lat p50 0.35 ms p99 1.29 ms mean 0.39 ms
+-- rr8k_qd32  21:10:11
+  rr8k_qd32        read: 12799 IOPS 100.0 MB/s  lat p50 1.20 ms p99 20.58 ms mean 2.48 ms
+-- rw8k_fsync_qd1  21:11:11
+  rw8k_fsync_qd1   write: 54 IOPS 0.4 MB/s  lat p50 0.91 ms p99 26.87 ms mean 3.84 ms   fsync: p50 3.82 ms p99 320.86 ms mean 18.54 ms
+-- seqread_1m  21:12:11
+  seqread_1m       read: 288 IOPS 287.7 MB/s  lat p50 15.79 ms p99 94.90 ms mean 24.33 ms
+-- seqwrite_1m  21:13:12
+  seqwrite_1m      write: 25 IOPS 24.9 MB/s  lat p50 283.12 ms p99 767.56 ms mean 281.32 ms
+
+== SUMMARY  db1server  2026-11-02 21:14:12 EAT  runtime 60s  size 4G  on /var/lib/postgresql
+  rr8k_qd1         read: 2473 IOPS 19.3 MB/s  lat p50 0.35 ms p99 1.29 ms mean 0.39 ms
+  rr8k_qd32        read: 12799 IOPS 100.0 MB/s  lat p50 1.20 ms p99 20.58 ms mean 2.48 ms
+  rw8k_fsync_qd1   write: 54 IOPS 0.4 MB/s  lat p50 0.91 ms p99 26.87 ms mean 3.84 ms   fsync: p50 3.82 ms p99 320.86 ms mean 18.54 ms
+  seqread_1m       read: 288 IOPS 287.7 MB/s  lat p50 15.79 ms p99 94.90 ms mean 24.33 ms
+  seqwrite_1m      write: 25 IOPS 24.9 MB/s  lat p50 283.12 ms p99 767.56 ms mean 281.32 ms
+load after: 3.01 2.43 1.89
+raw results kept in /root/inf745-bench/20261102-210008
+re-summarised 2026-11-03 06:12:17 EAT from /root/inf745-bench/20261102-210008 (5 jobs)
